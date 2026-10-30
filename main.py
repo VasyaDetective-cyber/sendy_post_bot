@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+import threading  
+from flask import Flask  
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -15,6 +17,17 @@ from sendy.db import init_db
 from sendy.handlers import admin, channels, post
 from sendy.middleware import AccessMiddleware
 from sendy.scheduler import setup_scheduler
+
+
+app = Flask(__name__)
+
+@app.route('/')
+def ping():
+    return "Bot is running!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
 
 
 async def main() -> None:
@@ -38,9 +51,7 @@ async def main() -> None:
             BotCommand(command="help", description="❓ Довідка")]
     await bot.set_my_commands(base)
     try:
-        # Спрацює лише якщо власник уже бодай раз писав боту (/start).
-        # Якщо ще ні — не страшно, довгий список команд він побачить після /start,
-        # це налаштовується в handlers/admin.py.
+       
         await bot.set_my_commands(base + [BotCommand(command="admins", description="👑 Адміни")],
                                   scope=BotCommandScopeChat(chat_id=settings.super_admin_id))
     except TelegramBadRequest:
@@ -48,6 +59,10 @@ async def main() -> None:
 
     scheduler = setup_scheduler(bot, sm)
     scheduler.start()
+    
+    threading.Thread(target=run_web, daemon=True).start()
+
+
     try:
         await dp.start_polling(bot)
     finally:
